@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AREAS, DEVICES, createTicket, type Area, type Device } from "@/lib/storage";
+import { AREAS, DEVICES, type Area, type Device } from "@/lib/types";
+import { createTicket } from "@/lib/tickets";
 
 export default function HomePage() {
   const router = useRouter();
@@ -11,19 +12,27 @@ export default function HomePage() {
   const [device, setDevice] = useState<Device>("电脑");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!name.trim()) return setError("请填写提交人姓名");
     if (!description.trim()) return setError("请描述一下故障现象");
 
-    createTicket({
-      name: name.trim(),
-      area,
-      device,
-      description: description.trim(),
-    });
-    router.push("/tickets");
+    setError("");
+    setSubmitting(true);
+    try {
+      await createTicket({
+        name: name.trim(),
+        area,
+        device,
+        description: description.trim(),
+      });
+      router.push("/tickets");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "提交失败，请稍后重试");
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -114,7 +123,7 @@ export default function HomePage() {
         </div>
 
         {error && (
-          <p className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700">
+          <p className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm leading-relaxed text-rose-700">
             {error}
           </p>
         )}
@@ -122,9 +131,10 @@ export default function HomePage() {
         <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-5">
           <button
             type="submit"
-            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            disabled={submitting}
+            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:bg-indigo-400"
           >
-            提交报修
+            {submitting ? "提交中…" : "提交报修"}
           </button>
         </div>
       </form>

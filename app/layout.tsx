@@ -43,7 +43,7 @@ export default function RootLayout({
         </header>
         <main className="mx-auto max-w-4xl px-6 py-8">{children}</main>
         <footer className="mx-auto max-w-4xl px-6 pb-10 text-xs text-slate-400">
-          smart-repair · 数据暂存浏览器本地（localStorage），换设备不同步
+          smart-repair · 数据存于 Supabase，换设备也能看到同一批工单
         </footer>
       </body>
     </html>

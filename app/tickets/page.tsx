@@ -1,14 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  STATUSES,
-  listTickets,
-  updateStatus,
-  type Status,
-  type Ticket,
-} from "@/lib/storage";
+import { STATUSES, type Status, type Ticket } from "@/lib/types";
+import { listTickets, updateStatus } from "@/lib/tickets";
 
 const SELECT_STYLES: Record<Status, string> = {
   待处理: "border-amber-300 bg-amber-50 text-amber-700",
@@ -30,15 +25,36 @@ function formatTime(iso: string): string {
 export default function TicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    setTickets(listTickets());
-    setLoaded(true);
+  const load = useCallback(async () => {
+    try {
+      setTickets(await listTickets());
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "读取工单失败");
+    } finally {
+      setLoaded(true);
+    }
   }, []);
 
-  function handleStatusChange(id: string, status: Status) {
-    updateStatus(id, status);
-    setTickets(listTickets());
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function handleStatusChange(id: string, status: Status) {
+    const previous = tickets;
+    setTickets(
+      tickets.map((ticket) =>
+        ticket.id === id ? { ...ticket, status } : ticket,
+      ),
+    );
+    try {
+      await updateStatus(id, status);
+    } catch (err) {
+      setTickets(previous);
+      setError(err instanceof Error ? err.message : "状态更新失败");
+    }
   }
 
   if (!loaded) {
@@ -61,6 +77,12 @@ export default function TicketsPage() {
           + 新建报修
         </Link>
       </div>
+
+      {error && (
+        <p className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm leading-relaxed text-rose-700">
+          {error}
+        </p>
+      )}
 
       {tickets.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
