@@ -1,4 +1,4 @@
-import type { Status } from "@/lib/storage";
+import type { Status } from "@/lib/types";
 
 const STYLES: Record<Status, string> = {
   待处理: "bg-amber-50 text-amber-700 ring-amber-200",

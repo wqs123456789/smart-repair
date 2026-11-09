@@ -2,18 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import StatusBadge from "@/components/status-badge";
-import {
-  STATUSES,
-  getTicket,
-  removeTicket,
-  updateStatus,
-  type Status,
-  type Ticket,
-} from "@/lib/storage";
+import { STATUSES, type Status, type Ticket } from "@/lib/types";
+import { getTicket, removeTicket, updateStatus } from "@/lib/tickets";
 
-const FIELDS: { label: string; key: keyof Pick<Ticket, "name" | "area" | "device"> }[] = [
+const FIELDS: {
+  label: string;
+  key: keyof Pick<Ticket, "name" | "area" | "device">;
+}[] = [
   { label: "提交人", key: "name" },
   { label: "办公区", key: "area" },
   { label: "设备类型", key: "device" },
@@ -21,26 +18,55 @@ const FIELDS: { label: string; key: keyof Pick<Ticket, "name" | "area" | "device
 
 export default function TicketDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = params?.id;
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    setTicket(getTicket(id));
-    setLoaded(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const found = await getTicket(id);
+        if (!cancelled) setTicket(found);
+      } catch (err) {
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : "读取工单失败");
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  function handleStatusChange(status: Status) {
+  async function handleStatusChange(status: Status) {
     if (!ticket) return;
-    updateStatus(ticket.id, status);
+    const previous = ticket;
     setTicket({ ...ticket, status });
+    try {
+      await updateStatus(ticket.id, status);
+      setError("");
+    } catch (err) {
+      setTicket(previous);
+      setError(err instanceof Error ? err.message : "状态更新失败");
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!ticket) return;
-    removeTicket(ticket.id);
-    window.location.href = "/tickets";
+    setBusy(true);
+    try {
+      await removeTicket(ticket.id);
+      router.push("/tickets");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
+      setBusy(false);
+    }
   }
 
   if (!loaded) {
@@ -50,7 +76,9 @@ export default function TicketDetailPage() {
   if (!ticket) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
-        <p className="text-sm text-slate-500">找不到这条工单，可能已经删除了。</p>
+        <p className="text-sm text-slate-500">
+          {error || "找不到这条工单，可能已经删除了。"}
+        </p>
         <Link
           href="/tickets"
           className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-700"
@@ -102,6 +130,12 @@ export default function TicketDetailPage() {
           </p>
         </div>
 
+        {error && (
+          <p className="mt-4 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm leading-relaxed text-rose-700">
+            {error}
+          </p>
+        )}
+
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-500">处理状态</span>
@@ -122,9 +156,10 @@ export default function TicketDetailPage() {
           <button
             type="button"
             onClick={handleDelete}
-            className="rounded-lg px-3 py-1.5 text-sm text-rose-600 transition hover:bg-rose-50"
+            disabled={busy}
+            className="rounded-lg px-3 py-1.5 text-sm text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
           >
-            删除这条工单
+            {busy ? "删除中…" : "删除这条工单"}
           </button>
         </div>
       </div>
